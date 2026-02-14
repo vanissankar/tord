@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Truth or Dare</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: system-ui, sans-serif;
+    }
+
+    body {
+      background: #0f0f0f;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .screen {
+      display: none;
+      height: 100vh;
+      width: 100vw;
+      padding: 20px;
+    }
+
+    .screen.active {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    button {
+      padding: 14px 28px;
+      font-size: 18px;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      background: #ff4d4d;
+      color: #fff;
+      margin-top: 20px;
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 24px;
+      margin: 20px 0;
+      font-size: 22px;
+    }
+
+    .checkbox-group input {
+      transform: scale(1.6);
+      margin-right: 8px;
+    }
+
+    /* -------- Finger Screen -------- */
+    #fingerArea {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    .finger {
+      position: absolute;
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ff6a6a, #ff2f2f);
+      border: 4px solid #fff;
+      box-shadow: 0 0 25px rgba(255, 77, 77, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: bold;
+      transform: translate(-50%, -50%);
+    }
+
+    .finger.selected {
+      background: radial-gradient(circle, #00ff99, #00cc77);
+      box-shadow: 0 0 40px rgba(0, 255, 153, 1);
+      transform: translate(-50%, -50%) scale(1.35);
+    }
+
+    /* -------- Countdown -------- */
+    .countdown {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 48px;
+      font-weight: bold;
+      color: #00ff99;
+      z-index: 10;
+    }
+
+    /* -------- Truth / Dare -------- */
+    .card {
+      background: #1e1e1e;
+      padding: 32px;
+      border-radius: 18px;
+      text-align: center;
+      max-width: 90%;
+    }
+
+    .card h2 {
+      margin-bottom: 16px;
+      color: #ff4d4d;
+      font-size: 32px;
+    }
+
+    .card p {
+      font-size: 22px;
+    }
+
+    .close-btn {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      font-size: 28px;
+      cursor: pointer;
+      z-index: 10;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- SCREEN 1 -->
+  <div id="startScreen" class="screen active">
+    <h1>Truth or Dare</h1>
+
+    <div class="checkbox-group">
+      <label><input type="checkbox" id="truthCheck"> Truth</label>
+      <label><input type="checkbox" id="dareCheck"> Dare</label>
+    </div>
+
+    <button id="startBtn">Start</button>
+  </div>
+
+  <!-- SCREEN 2 -->
+  <div id="fingerScreen" class="screen">
+    <div class="close-btn" onclick="resetGame()">✕</div>
+    <div class="countdown" id="countdown"></div>
+    <div id="fingerArea"></div>
+  </div>
+
+  <!-- SCREEN 3 -->
+  <div id="tdScreen" class="screen">
+    <div class="close-btn" onclick="resetGame()">✕</div>
+
+    <div class="card">
+      <h2 id="tdType"></h2>
+      <p id="tdText"></p>
+      <button onclick="nextRound()">Continue</button>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      mode: { truth: false, dare: false },
+      fingers: new Map(),
+      selectedFingerId: null,
+      countdownRunning: false,
+      countdownTimer: null
+    };
+
+    const truths = [
+  "What emotion do you feel most often?",
+  "What do people misunderstand about you the most?",
+  "What motivates you when you feel low?",
+  "Do you trust people easily or slowly?",
+  "What kind of person makes you uncomfortable?",
+  "What kind of person makes you feel safe?",
+  "What is your biggest internal struggle?",
+  "Do you prefer being noticed or staying unnoticed?",
+  "What do you value more: peace or excitement?",
+  "What drains your energy the fastest?",
+  "What gives you energy instantly?",
+  "Do you express emotions openly or keep them inside?",
+  "What are you most afraid of losing?",
+  "What makes you feel confident?",
+  "What makes you doubt yourself?",
+  "Do you forgive easily or remember things for long?",
+  "What is something you overthink a lot?",
+  "Do you follow your heart or your logic more?",
+  "What kind of feedback hurts you the most?",
+  "What kind of compliment means the most to you?",
+  "What do you usually hide from others?",
+  "Do you prefer deep talks or light conversations?",
+  "What kind of situations stress you out?",
+  "What kind of situations calm you down?",
+  "What is your emotional weakness?",
+  "What is your emotional strength?",
+  "Do you like control or flexibility?",
+  "What kind of responsibility scares you?",
+  "What kind of responsibility excites you?",
+  "What makes you feel respected?",
+  "What makes you feel ignored?",
+  "Do you like being alone or with people more?",
+  "What do you fear people discovering about you?",
+  "What do you wish people noticed about you?",
+  "What makes you feel proud of yourself?",
+  "What makes you feel disappointed in yourself?",
+  "What kind of person do you admire?",
+  "What kind of behavior instantly annoys you?",
+  "Do you handle pressure well or badly?",
+  "What do you usually do when you’re overwhelmed?",
+  "What do you avoid even though you know you shouldn’t?",
+  "What do you care about more than you admit?",
+  "What do you pretend not to care about?",
+  "Do you like routine or change more?",
+  "What kind of future scares you?",
+  "What kind of future excites you?",
+  "What do you need most from others?",
+  "What do you need most from yourself?",
+  "Do you prefer clarity or mystery?",
+  "What kind of silence makes you uncomfortable?",
+  "What kind of silence do you enjoy?",
+  "What do you do when you feel misunderstood?",
+  "What makes you feel emotionally safe?",
+  "What makes you emotionally shut down?",
+  "Do you open up quickly or slowly?",
+  "What kind of promise do you never break?",
+  "What kind of promise do you struggle to keep?",
+  "What do you value more: honesty or kindness?",
+  "What kind of truth hurts you the most?",
+  "What kind of truth helps you grow?",
+  "What do you avoid talking about?",
+  "What topic do you enjoy discussing deeply?",
+  "What kind of person do you become under stress?",
+  "What kind of person do you become when happy?",
+  "What do you fear failing at the most?",
+  "What do you feel secretly confident about?",
+  "What makes you feel emotionally tired?",
+  "What makes you feel emotionally alive?",
+  "What kind of support do you appreciate the most?",
+  "What kind of support feels uncomfortable to receive?",
+  "Do you prefer solving problems alone or together?",
+  "What kind of criticism affects you deeply?",
+  "What kind of praise do you doubt?",
+  "What makes you feel grounded?",
+  "What makes you feel lost?",
+  "What kind of change is hardest for you?",
+  "What kind of change excites you?",
+  "What do you fear repeating from the past?",
+  "What lesson did you learn the hard way?",
+  "What do you struggle to ask for?",
+  "What do you give easily to others?",
+  "What do you need reassurance about?",
+  "What makes you feel secure?",
+  "What makes you feel insecure?",
+  "Do you prefer certainty or possibility?",
+  "What kind of failure scares you the most?",
+  "What kind of success scares you the most?",
+  "What do you value more: being understood or being accepted?",
+  "What kind of boundaries do you struggle to set?",
+  "What kind of boundaries do you defend strongly?",
+  "What do you feel responsible for even when you shouldn’t?",
+  "What do you wish you were braver about?",
+  "What makes you feel emotionally seen?",
+  "What makes you feel emotionally invisible?",
+  "What kind of connection do you crave?",
+  "What kind of connection overwhelms you?",
+  "What do you wish people asked you more often?",
+  "What do you wish people stopped assuming about you?",
+  "What makes you feel calm inside?",
+  "What makes you feel restless inside?",
+  "What part of yourself are you still figuring out?",
+  "What part of yourself are you most sure about?"
+];
+
+
+const dares = [
+  "Act like a monkey for 10 seconds OR give someone a high-five and a compliment",
+  "Talk in a baby voice for the next round OR share your favorite childhood snack",
+  "Pretend you are a very angry teacher for 15 seconds OR assign someone silly homework",
+  "Dance without music for 10 seconds OR teach everyone one simple dance move",
+  "Make the funniest face you can OR tell a short funny joke",
+  "Talk like a robot until your next turn OR explain how to make tea like a robot",
+  "Pretend you just slipped on a banana peel OR act out a dramatic slow-motion fall",
+  "Act like you are invisible OR narrate what invisible you is doing",
+  "Laugh like a villain for 10 seconds OR invent a silly evil plan",
+  "Walk like a model on a funny fashion ramp OR describe your outfit dramatically",
+
+  "Pretend you are scared of something tiny OR name the bravest thing you've done",
+  "Do an overdramatic sigh OR explain why you're 'so exhausted' in a funny way",
+  "Act like you just won the lottery OR say what you'd buy first",
+  "Speak in slow motion for one sentence OR say a tongue twister fast",
+  "Pretend you are stuck in glue OR freeze like a statue for 10 seconds",
+  "Dance like a chicken for 10 seconds OR make your best chicken sound",
+  "Pretend you forgot how to sit properly OR invent a new silly sitting style",
+  "Make a funny sound effect OR imitate a random animal",
+  "Act like you are seeing snow for the first time OR describe snow dramatically",
+  "Pretend you are a news reporter reporting something silly OR interview someone about their socks",
+
+  "Talk like a cartoon character for one round OR draw an imaginary cartoon in the air",
+  "Pretend your shoes are very heavy OR walk in exaggerated slow motion",
+  "Act like you are very sleepy but trying to stay awake OR yawn loudly three times",
+  "Make a face like you tasted something sour OR describe the 'sour' flavor dramatically",
+  "Pretend you are late and running in slow motion OR shout 'I'm late!' dramatically",
+  "Do your funniest victory celebration OR invent a new victory dance move",
+  "Pretend you are a confused tourist OR ask someone for directions in a silly accent",
+  "Act like you are taking a very dramatic selfie OR strike three model poses",
+  "Laugh silently like a cartoon character OR laugh in slow motion",
+  "Pretend you are arguing with an invisible person OR apologize dramatically",
+
+  "Walk like a penguin for 10 seconds OR flap your arms like wings",
+  "Pretend you are shocked by everything OR gasp loudly three times",
+  "Act like you are afraid of the floor OR hop across the room carefully",
+  "Make a funny animal noise OR guess what animal someone else sounds like",
+  "Pretend you are chewing invisible gum OR blow an imaginary bubble",
+  "Talk like a very serious news anchor OR announce something normal dramatically",
+  "Act like you are stuck in a box OR mime escaping from it",
+  "Pretend you are a statue coming to life OR freeze in a funny pose",
+  "Do a funny slow clap OR cheer loudly for someone",
+  "Pretend you are a superhero with a useless power OR name your superhero and power",
+
+  "Act like you are sneaking very badly OR pretend you tripped while sneaking",
+  "Pretend you forgot your own name OR invent a new silly name",
+  "Talk like you are underwater OR move in slow motion like swimming",
+  "Pretend you are very proud of something silly OR give an acceptance speech",
+  "Make a confused face for 10 seconds OR ask three confused questions",
+  "Pretend you are dancing at a wedding OR invite someone to join",
+  "Act like you are taking instructions from your shoe OR argue with it",
+  "Pretend you are a robot running out of battery OR recharge dramatically",
+  "Do a funny walk across the room OR invent a new walking style",
+  "Act like you are surprised for no reason OR shout 'Wow!' dramatically",
+
+  "Pretend you are a cat stuck in a box OR meow dramatically for 10 seconds",
+  "Talk like a very dramatic movie character OR give a dramatic monologue about snacks",
+  "Pretend you are blowing bubbles OR pop imaginary bubbles around you",
+  "Act like you are scared of your own shadow OR try to fight it",
+  "Pretend you are doing yoga incorrectly OR invent a silly yoga pose",
+  "Make a funny reaction face OR imitate someone else's reaction face",
+  "Pretend you are a waiter taking a weird order OR describe the weirdest dish ever",
+  "Act like you are trying to catch a fly OR chase something imaginary around",
+  "Pretend you are a singer forgetting lyrics OR hum dramatically instead",
+  "End with your funniest pose OR strike a superhero landing pose"
+];
+
+// ---------- NO-REPEAT POOLS ----------
+let truthPool = [];
+let darePool = [];
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function resetTruthPool() {
+  truthPool = [...truths];
+  shuffle(truthPool);
+}
+
+function resetDarePool() {
+  darePool = [...dares];
+  shuffle(darePool);
+}
+
+// Initialize once
+resetTruthPool();
+resetDarePool();
+
+function getTruth() {
+  if (truthPool.length === 0) {
+    resetTruthPool(); // all used → reshuffle
+  }
+  return truthPool.pop();
+}
+
+function getDare() {
+  if (darePool.length === 0) {
+    resetDarePool(); // all used → reshuffle
+  }
+  return darePool.pop();
+}
+
+
+
+    const startScreen = document.getElementById("startScreen");
+    const fingerScreen = document.getElementById("fingerScreen");
+    const tdScreen = document.getElementById("tdScreen");
+    const area = document.getElementById("fingerArea");
+    const countdownEl = document.getElementById("countdown");
+
+    function show(screen) {
+      [startScreen, fingerScreen, tdScreen].forEach(s => s.classList.remove("active"));
+      screen.classList.add("active");
+    }
+
+    document.getElementById("startBtn").onclick = () => {
+      state.mode.truth = truthCheck.checked;
+      state.mode.dare = dareCheck.checked;
+
+      if (!state.mode.truth && !state.mode.dare) {
+        alert("Select Truth or Dare");
+        return;
+      }
+      show(fingerScreen);
+    };
+
+    function renderFingers() {
+      area.innerHTML = "";
+      [...state.fingers.values()].forEach((f, i) => {
+        const el = document.createElement("div");
+        el.className = "finger" + (f.id === state.selectedFingerId ? " selected" : "");
+        el.style.left = f.x + "px";
+        el.style.top = f.y + "px";
+        el.textContent = i + 1;
+        area.appendChild(el);
+      });
+    }
+
+    function startCountdown() {
+      if (state.countdownRunning) return;
+
+      let count = 5;
+      state.countdownRunning = true;
+      countdownEl.textContent = count;
+
+      state.countdownTimer = setInterval(() => {
+        count--;
+        if (count > 0) {
+          countdownEl.textContent = count;
+        } else {
+          clearInterval(state.countdownTimer);
+          countdownEl.textContent = "GO!";
+          setTimeout(selectFinger, 400);
+        }
+      }, 1000);
+    }
+
+    area.addEventListener("touchstart", e => {
+      for (const t of e.changedTouches) {
+        state.fingers.set(t.identifier, {
+          id: t.identifier,
+          x: t.clientX,
+          y: t.clientY
+        });
+      }
+      renderFingers();
+      startCountdown();
+    });
+
+    area.addEventListener("touchmove", e => {
+      for (const t of e.changedTouches) {
+        if (state.fingers.has(t.identifier)) {
+          state.fingers.get(t.identifier).x = t.clientX;
+          state.fingers.get(t.identifier).y = t.clientY;
+        }
+      }
+      renderFingers();
+    });
+
+    area.addEventListener("touchend", e => {
+      for (const t of e.changedTouches) {
+        state.fingers.delete(t.identifier);
+      }
+      renderFingers();
+    });
+
+    function selectFinger() {
+      if (state.fingers.size === 0) return;
+
+      const list = [...state.fingers.values()];
+      const chosen = list[Math.floor(Math.random() * list.length)];
+      state.selectedFingerId = chosen.id;
+      renderFingers();
+      setTimeout(showTruthDare, 900);
+    }
+
+    function showTruthDare() {
+  const type = state.mode.truth && state.mode.dare
+    ? Math.random() < 0.5 ? "Truth" : "Dare"
+    : state.mode.truth ? "Truth" : "Dare";
+
+  const text = type === "Truth"
+    ? getTruth()
+    : getDare();
+
+  tdType.textContent = type;
+  tdText.textContent = text;
+  show(tdScreen);
+}
+
+
+    function nextRound() {
+      state.fingers.clear();
+      state.selectedFingerId = null;
+      state.countdownRunning = false;
+      countdownEl.textContent = "";
+      show(fingerScreen);
+    }
+
+    function resetGame() {
+      state.fingers.clear();
+      state.selectedFingerId = null;
+      state.countdownRunning = false;
+      countdownEl.textContent = "";
+      show(startScreen);
+    }
+  </script>
+
+</body>
+</html>
